@@ -1,0 +1,36 @@
+= hello_llvm
+:toc:
+:toc-placement!:
+
+toc::[]
+
+== Introduction
+
+[%hardbreaks]
+The link:https://llvm.org/[LLVM] Project is a collection of modular and reusable compiler and toolchain technologies.
+Despite its name, LLVM has little to do with traditional virtual machines.
+The name "LLVM" itself is not an acronym; it is the full name of the project.
+
+== About this repository
+Just to learn LLVM :)
+
+== Requirements
+
+- [*] CMake v3.12+
+- [*] A c++ compiler (defaults to gcc)
+- [*] LLVM support
+- [ ] make
+
+== My Environment
+
+- [*] WSL Ubuntu2004
+- [*] gcc version 10.3.0 (Ubuntu 10.3.0-1ubuntu1~20.04)
+- [*] cmake version 3.16.3
+- [*] llvm-12
+
+[source,bash]
+----
+sudo apt install gcc-${version}, g++-${version}
+sudo apt install cmake
+sudo apt install llvm-${version}
+----
