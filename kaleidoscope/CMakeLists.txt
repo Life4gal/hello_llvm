@@ -19,7 +19,7 @@ include(LLVMConfig)
 message(STATUS "Found LLVM Package Version: ${LLVM_PACKAGE_VERSION}")
 message(STATUS "LLVM Built Type: ${LLVM_BUILD_TYPE}")
 
-llvm_map_components_to_libnames(REQ_LLVM_LIBRARIES mcjit interpreter native ipo)
+llvm_map_components_to_libnames(REQ_LLVM_LIBRARIES core orcjit mcjit interpreter native ipo)
 
 set(
 		${PROJECT_NAME}_SOURCE
