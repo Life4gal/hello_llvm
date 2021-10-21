@@ -1,6 +1,30 @@
 #include <kaleidoscope/parser.hpp>
 
+#include <llvm-12/llvm/Support/TargetSelect.h>
+
 #include <iostream>
+
+//===----------------------------------------------------------------------===//
+// "Library" functions that can be "extern 'd" from user code.
+//===----------------------------------------------------------------------===//
+
+#ifdef _WIN32
+	#define DLLEXPORT __declspec(dllexport)
+#else
+	#define DLLEXPORT
+#endif
+
+/// putchard - putchar that takes a double and returns 0.
+extern "C" DLLEXPORT double putchard(const double x)
+{
+	return std::fputc(static_cast<char>(x), stderr);
+}
+
+/// printd - printf that takes a double prints it as "%f\n", returning 0.
+extern "C" DLLEXPORT double printd(const double x)
+{
+	return std::fprintf(stderr, "%.3f\n", x);
+}
 
 ///// top ::= definition | external | expression | ';'
 void main_loop(hello_llvm::parser& parser)
@@ -11,6 +35,7 @@ void main_loop(hello_llvm::parser& parser)
 		parser.get_next_token();
 		switch (parser.get_curr_token())
 		{
+			case '_':
 			case hello_llvm::tokenizer::tok_eof:
 				return;
 			case ';':// ignore top-level semicolons.
@@ -36,6 +61,10 @@ void main_loop(hello_llvm::parser& parser)
 
 int main()
 {
+	llvm::InitializeNativeTarget();
+	llvm::InitializeNativeTargetAsmPrinter();
+	llvm::InitializeNativeTargetAsmParser();
+
 	hello_llvm::parser		   parser{};
 
 	// Install standard binary operators.

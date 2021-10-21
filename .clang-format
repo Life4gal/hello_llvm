@@ -60,7 +60,7 @@ MaxEmptyLinesToKeep: 2
 NamespaceIndentation: All
 PointerAlignment: Left
 ReflowComments: false
-SortIncludes: CaseSensitive
+SortIncludes: true  #CaseSensitive
 SortUsingDeclarations: false
 SpaceAfterCStyleCast: false
 SpaceAfterLogicalNot: false

@@ -18,24 +18,21 @@ namespace hello_llvm
 		// identifier: [a-zA-Z][a-zA-Z0-9]*
 		if (std::isalpha(last_char))
 		{
-			identifier_str = char(last_char);
+			identifier_str = static_cast<char>(last_char);
 			while (std::isalnum((last_char = std::getchar())))
 			{
-				identifier_str += char(last_char);
+				identifier_str += static_cast<char>(last_char);
 			}
 
 			if (identifier_str == "def")
 			{
 				return tok_def;
 			}
-			else if (identifier_str == "extern")
+			if (identifier_str == "extern")
 			{
 				return tok_extern;
 			}
-			else
-			{
-				return tok_identifier;
-			}
+			return tok_identifier;
 		}
 
 		// Number: [0-9.]+
@@ -44,7 +41,7 @@ namespace hello_llvm
 			std::string num_str;
 			do
 			{
-				num_str += char(last_char);
+				num_str += static_cast<char>(last_char);
 				last_char = std::getchar();
 			} while (std::isdigit(last_char) || last_char == '.');
 
@@ -72,7 +69,7 @@ namespace hello_llvm
 		}
 
 		// Otherwise, just return the character as its ascii value.
-		auto this_char = last_char;
+		const auto this_char = last_char;
 		last_char	   = std::getchar();
 		return this_char;
 	}
