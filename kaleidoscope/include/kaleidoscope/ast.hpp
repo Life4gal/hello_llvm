@@ -124,6 +124,7 @@ namespace hello_llvm
 	};
 
 	#if __clang__
+		#pragma clang	diagnostic push
 		#pragma clang diagnostic ignored "-Wpadded"
 	#endif
 

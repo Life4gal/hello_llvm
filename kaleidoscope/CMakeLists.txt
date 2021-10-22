@@ -19,7 +19,19 @@ include(LLVMConfig)
 message(STATUS "Found LLVM Package Version: ${LLVM_PACKAGE_VERSION}")
 message(STATUS "LLVM Built Type: ${LLVM_BUILD_TYPE}")
 
-llvm_map_components_to_libnames(REQ_LLVM_LIBRARIES core orcjit mcjit interpreter native ipo)
+llvm_map_components_to_libnames(
+	REQ_LLVM_LIBRARIES 
+	Analysis
+	Core
+	ExecutionEngine
+	InstCombine
+	Object
+	OrcJIT
+	RuntimeDyld
+	ScalarOpts
+	Support
+	native
+)
 
 set(
 		${PROJECT_NAME}_SOURCE
@@ -60,8 +72,16 @@ message("LLVM -----> ${LLVM_INCLUDE_DIRS}")
 #		${CMAKE_CURRENT_BINARY_DIR}
 #)
 
-target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
+target_compile_features(
+	${PROJECT_NAME} 
+	PRIVATE 
+	cxx_std_20
+)
 
-target_link_libraries(${PROJECT_NAME} ${REQ_LLVM_LIBRARIES})
+target_link_libraries(
+	${PROJECT_NAME} 
+	PRIVATE
+	${REQ_LLVM_LIBRARIES}
+)
 
 include(${HELLO_LLVM_MODULE_PATH}/config_build_type.cmake)

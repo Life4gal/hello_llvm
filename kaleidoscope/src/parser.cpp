@@ -305,7 +305,7 @@ namespace hello_llvm
 				// Create a ResourceTracker to track JIT 'd memory allocated to our
 				// anonymous expression -- that way we can free it after executing.
 				const auto rt = context.jit->getMainJITDylib().createResourceTracker();
-
+				
 				auto [m, c]	  = global_context::refresh();
 				auto tsm = llvm::orc::ThreadSafeModule(std::move(m), std::move(c));
 				context.exit_on_error(context.jit->addModule(std::move(tsm), rt));
