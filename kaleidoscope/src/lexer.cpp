@@ -32,6 +32,22 @@ namespace hello_llvm
 			{
 				return tok_extern;
 			}
+			if (identifier_str == "if")
+			{
+				return tok_if;
+			}
+			if (identifier_str == "else")
+			{
+				return tok_else;
+			}
+			if (identifier_str == "for")
+			{
+				return tok_for;
+			}
+			if (identifier_str == "in")
+			{
+				return tok_in;
+			}
 			return tok_identifier;
 		}
 

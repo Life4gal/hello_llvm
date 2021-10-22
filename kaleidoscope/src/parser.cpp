@@ -73,6 +73,80 @@ namespace hello_llvm
 		return std::make_unique<call_expr_ast>(id_name, std::move(args));
 	}
 
+	std::unique_ptr<expr_ast> parser::parse_if_expr()
+	{
+		get_next_token();// eat the if
+
+		// condition.
+		auto cond = parse_expression();
+		if (!cond) { return nullptr; }
+
+		if (curr_tok_ != tokenizer::tok_then) { return log_error("expected then"); }
+
+		get_next_token();// eat the then
+
+		// then
+		auto then = parse_expression();
+		if (!then) { return nullptr; }
+
+		if (curr_tok_ != tokenizer::tok_else) { return log_error("expected else"); }
+
+		get_next_token();// eat the else
+
+		auto else_ = parse_expression();
+		if (!else_) { return nullptr; }
+
+		return std::make_unique<if_expr_ast>(std::move(cond), std::move(then), std::move(else_));
+	}
+
+	std::unique_ptr<expr_ast> parser::parse_for_expr()
+	{
+		get_next_token();// eat the for
+
+		if (curr_tok_ != tokenizer::tok_identifier) { return log_error("expected identifier after for"); }
+
+		std::string cond_var = tok_.identifier_str;
+
+		get_next_token();// eat identifier
+
+		if (curr_tok_ != '=') { return log_error("expected '=' after 'for'"); }
+
+		get_next_token();// eat '='
+
+		auto init = parse_expression();
+		if (!init) { return nullptr; }
+
+		if (curr_tok_ != ',') { return log_error("expected ',' after for init value"); }
+
+		get_next_token();// eat end
+
+		auto end = parse_expression();
+		if (!end) { return nullptr; }
+
+		// The step value is optional
+		std::unique_ptr<expr_ast> step;
+		if (curr_tok_ == ',')
+		{
+			get_next_token();
+			step = parse_expression();
+			if (!step) { return nullptr; }
+		}
+
+		if (curr_tok_ != tokenizer::tok_in) { return log_error("expected 'in' after for"); }
+
+		get_next_token();// eat 'in'
+
+		auto body = parse_expression();
+		if (!body) { return nullptr; }
+
+		return std::make_unique<for_expr_ast>(
+				std::move(cond_var),
+				std::move(init),
+				std::move(end),
+				std::move(step),
+				std::move(body));
+	}
+
 	std::unique_ptr<expr_ast> parser::parse_primary()
 	{
 		switch (curr_tok_)
@@ -80,11 +154,13 @@ namespace hello_llvm
 			case tokenizer::tok_identifier: return parse_identifier_expr();
 			case tokenizer::tok_number: return parse_number_expr();
 			case '(': return parse_paren_expr();
+			case tokenizer::tok_if: return parse_if_expr();
+			case tokenizer::tok_for: return parse_for_expr();
 			default: return log_error("unknown token when expecting an expression");
 		}
 	}
 
-	std::unique_ptr<expr_ast> parser::parse_bin_op_rhs(int expr_prec, std::unique_ptr<expr_ast> lhs)
+	std::unique_ptr<expr_ast> parser::parse_bin_op_rhs(const int expr_prec, std::unique_ptr<expr_ast> lhs)
 	{
 		// If this is a bin_op, find its precedence.
 		while (true)
@@ -230,9 +306,9 @@ namespace hello_llvm
 				// anonymous expression -- that way we can free it after executing.
 				const auto rt = context.jit->getMainJITDylib().createResourceTracker();
 
-				auto tsm = llvm::orc::ThreadSafeModule(std::move(context.module), std::move(context.context));
+				auto [m, c]	  = global_context::refresh();
+				auto tsm = llvm::orc::ThreadSafeModule(std::move(m), std::move(c));
 				context.exit_on_error(context.jit->addModule(std::move(tsm), rt));
-				global_context::refresh();
 
 				// Search the JIT for the __anon_expr__ symbol.
 				const auto expr = context.exit_on_error(context.jit->lookup("__anon_expr__"));

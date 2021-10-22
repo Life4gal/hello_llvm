@@ -15,21 +15,28 @@ namespace hello_llvm
 		// of these for known things.
 		enum token
 		{
-			tok_eof		   = -1,
+			tok_eof,// = -1,
 
 			// commands
-			tok_def		   = -2,
-			tok_extern	   = -3,
+			tok_def,// = -2,
+			tok_extern,// = -3,
 
 			// primary
-			tok_identifier = -4,
-			tok_number	   = -5
+			tok_identifier,// = -4,
+			tok_number,	   // = -5,
+
+			// control
+			tok_if,// = -6,
+			tok_then,// = -7,
+			tok_else,// = -8,
+			tok_for, // = -9,
+			tok_in,	 // = -10
 		};
 
 		std::string identifier_str;// Filled in if tok_identifier
-		double		num_val{};	   // Filled in if tok_number
+		double num_val{};          // Filled in if tok_number
 
-		int			get_token();
+		int get_token();
 	};
 }// namespace hello_llvm
 

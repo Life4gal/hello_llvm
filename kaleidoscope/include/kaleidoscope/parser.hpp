@@ -43,10 +43,18 @@ namespace hello_llvm
 		///   ::= identifier '(' expression* ')'
 		std::unique_ptr<expr_ast> parse_identifier_expr();
 
+		/// if_expr ::= 'if' expression 'then' expression 'else' expression
+		std::unique_ptr<expr_ast>	   parse_if_expr();
+
+		/// for_expr ::= 'for' identifier '=' expr ',' expr (',' expr)? 'in' expression
+		std::unique_ptr<expr_ast>	   parse_for_expr();
+
 		/// primary
 		///   ::= identifier_expr
 		///   ::= number_expr
 		///   ::= paren_expr
+		///   ::= if_expr
+		///   ::= for_expr
 		std::unique_ptr<expr_ast> parse_primary();
 
 		/// bin_op_rhs

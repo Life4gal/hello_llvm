@@ -26,14 +26,14 @@ namespace hello_llvm
 	{
 		// Open a new context and module.
 		context = std::make_unique<llvm::LLVMContext>();
-		module	 = std::make_unique<llvm::Module>("my cool jit", *context);
+		module = std::make_unique<llvm::Module>("my cool jit", *context);
 		module->setDataLayout(jit->getDataLayout());
 
 		// Create a new builder for the module.
 		builder = std::make_unique<llvm::IRBuilder<>>(*context);
 
 		// Create a new pass manager attached to it.
-		fpm	 = std::make_unique<llvm::legacy::FunctionPassManager>(module.get());
+		fpm = std::make_unique<llvm::legacy::FunctionPassManager>(module.get());
 
 		// Do simple "peephole" optimizations and bit-twiddling options.
 		fpm->add(llvm::createInstructionCombiningPass());
@@ -51,7 +51,7 @@ namespace hello_llvm
 	{
 		auto& self = get();
 
-		auto  ret	 = std::make_pair(std::move(self.module), std::move(self.context));
+		auto ret = std::make_pair(std::move(self.module), std::move(self.context));
 
 		self.new_module_and_context();
 
@@ -152,6 +152,157 @@ namespace hello_llvm
 		return global_context::get().builder->CreateCall(callee_func, vec, "call_tmp");
 	}
 
+	llvm::Value* if_expr_ast::codegen()
+	{
+		auto& context = global_context::get();
+
+		auto* cond_val = cond_->codegen();
+		if (!cond_val) { return nullptr; }
+
+		// Convert condition to a bool by comparing non-equal to 0.0.
+		cond_val = context.builder->CreateFCmpONE(cond_val, llvm::ConstantFP::get(*context.context, llvm::APFloat(0.0)), "if_cond");
+
+		auto* func = context.builder->GetInsertBlock()->getParent();
+
+		// Create blocks for the then and else cases.  Insert the 'then' block at the
+		// end of the function.
+		auto* then_bb = llvm::BasicBlock::Create(*context.context, "then", func);
+		auto* else_bb = llvm::BasicBlock::Create(*context.context, "else");
+		auto* merge_bb = llvm::BasicBlock::Create(*context.context, "if_count");
+
+		context.builder->CreateCondBr(cond_val, then_bb, else_bb);
+
+		// Emit then value.
+		context.builder->SetInsertPoint(then_bb);
+
+		auto* then_val = then_->codegen();
+		if (!then_val) { return nullptr; }
+
+		context.builder->CreateBr(merge_bb);
+		// Codegen of 'then_' can change the current block, update then_bb for the PHI.
+		then_bb = context.builder->GetInsertBlock();
+
+		// Emit else block.
+		func->getBasicBlockList().push_back(else_bb);
+		context.builder->SetInsertPoint(else_bb);
+
+		auto* else_val = else_->codegen();
+		if (!else_val) { return nullptr; }
+
+		context.builder->CreateBr(merge_bb);
+		// Codegen of 'else_' can change the current block, update else_bb for the PHI.
+		else_bb = context.builder->GetInsertBlock();
+
+		// Emit merge block.
+		func->getBasicBlockList().push_back(merge_bb);
+		context.builder->SetInsertPoint(merge_bb);
+		auto* pn = context.builder->CreatePHI(llvm::Type::getDoubleTy(*context.context), 2, "if_tmp");
+
+		pn->addIncoming(then_val, then_bb);
+		pn->addIncoming(else_val, else_bb);
+		return pn;
+	}
+
+	llvm::Value* for_expr_ast::codegen()
+	{
+		// Output for-loop as:
+		//   ...
+		//   init = init-expr
+		//   goto loop
+		// loop:
+		//   variable = phi [init, loop-header], [next-variable, loop-end]
+		//   ...
+		//   body-expr
+		//   ...
+		// loop-end:
+		//   step = step-expr
+		//   next-variable = variable + step
+		//   end-cond = end-expr
+		//   br end-cond, loop, end-loop
+		// out-loop:
+
+		auto& context = global_context::get();
+
+		// Emit the init code first, without 'variable' in scope.
+		auto* cond_val = init_->codegen();
+		if (!cond_val) { return nullptr; }
+
+		// Make the new basic block for the loop header, inserting after current block
+		auto* func = context.builder->GetInsertBlock()->getParent();
+		auto* ph_bb = context.builder->GetInsertBlock();
+		auto* loop_bb = llvm::BasicBlock::Create(*context.context, "loop", func);
+
+		// Insert an explicit fall through from the current block to the loop_bb
+		context.builder->CreateBr(loop_bb);
+
+		// Start insertion in loop_bb
+		context.builder->SetInsertPoint(loop_bb);
+
+		// Start the PHI node with an entry for init
+		auto* var = context.builder->CreatePHI(llvm::Type::getDoubleTy(*context.context), 2, cond_name_);
+		var->addIncoming(cond_val, ph_bb);
+
+		// Within the loop, the variable is defined equal to the PHI node.  If it
+		// shadows an existing variable, we have to restore it, so save it now.
+		// auto* old_val = std::exchange(context.named_values[cond_name_], var);
+		auto* old_val = context.named_values[cond_name_];
+		context.named_values[cond_name_] = var;
+
+		// Emit the body of the loop.  This, like any other expr, can change the
+		// current BB.  Note that we ignore the value computed by the body, but don't
+		// allow an error.
+		if (!body_->codegen()) { return nullptr; }
+
+		// Emit the step value.
+		llvm::Value* step_val;
+		if (step_)
+		{
+			step_val = step_->codegen();
+			if (!step_val) { return nullptr; }
+		}
+		else
+		{
+			// If not specified, use 1.0
+			step_val = llvm::ConstantFP::get(*context.context, llvm::APFloat(1.0));
+		}
+
+		auto* next_val = context.builder->CreateFAdd(var, step_val, "next_val");
+
+		// Compute the end condition
+		auto* end_cond = end_->codegen();
+		if (!end_cond) { return nullptr; }
+
+		// Convert condition to a bool by comparing non-equal to 0.0.
+		end_cond = context.builder->CreateFCmpONE(end_cond, llvm::ConstantFP::get(*context.context, llvm::APFloat(0.0)), "loop_cond");
+
+		// Create the "after loop" block and insert it.
+		auto* loop_end_bb = context.builder->GetInsertBlock();
+		auto* after_bb = llvm::BasicBlock::Create(*context.context, "after_loop", func);
+
+		// Insert the conditional branch into the end of loop_end_bb
+		context.builder->CreateCondBr(end_cond, loop_bb, after_bb);
+
+		// Any new code will be inserted in after_bb
+		context.builder->SetInsertPoint(after_bb);
+
+		// Add a new entry to the PHI node for the back-edge.
+		var->addIncoming(next_val, loop_end_bb);
+
+		// Restore the un-shadowed variable.
+		// std::exchange(context.named_values[cond_name_], old_val);
+		if (old_val)
+		{
+			context.named_values[cond_name_] = old_val;
+		}
+		else
+		{
+			context.named_values.erase(cond_name_);
+		}
+
+		// for expr always returns 0.0.
+		return llvm::ConstantFP::getNullValue(llvm::Type::getDoubleTy(*context.context));
+	}
+
 	llvm::Function* prototype_ast::codegen()
 	{
 		// Make the function type:  double(double,double) etc.
@@ -170,7 +321,7 @@ namespace hello_llvm
 
 	llvm::Function* function_ast::codegen()
 	{
-		auto&		context = global_context::get();
+		auto& context = global_context::get();
 		// Transfer ownership of the prototype to the Functions Proto map, but keep a
 		// reference to it for use below.
 		const auto& p = *proto_;

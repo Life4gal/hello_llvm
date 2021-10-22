@@ -40,6 +40,7 @@ namespace hello_llvm
 {
 	class expr_ast;
 	class number_expr_ast;
+	class variable_expr_ast;
 	class binary_expr_ast;
 	class call_expr_ast;
 	class prototype_ast;
@@ -63,9 +64,9 @@ namespace hello_llvm
 
 		static global_context& get();
 
-		static std::pair<std::unique_ptr<llvm::Module>, std::unique_ptr<llvm::LLVMContext>> refresh();
+		[[nodiscard]] static std::pair<std::unique_ptr<llvm::Module>, std::unique_ptr<llvm::LLVMContext>> refresh();
 
-		static llvm::Function* get_function(const std::string& name);
+		[[nodiscard]] static llvm::Function*															  get_function(const std::string& name);
 
 		static std::pair<decltype(functions_proto)::iterator, bool> insert_or_assign(std::unique_ptr<prototype_ast> ast);
 
@@ -158,6 +159,42 @@ namespace hello_llvm
 		              std::vector<std::unique_ptr<expr_ast>> args)
 			: callee_(std::move(callee)),
 			  args_(std::move(args)) {}
+
+		llvm::Value* codegen() override;
+	};
+
+	/// if_expr_ast - Expression class for if/then/else.
+	class if_expr_ast final : public expr_ast
+	{
+		std::unique_ptr<expr_ast> cond_;
+		std::unique_ptr<expr_ast> then_;
+		std::unique_ptr<expr_ast> else_;
+
+	public:
+		if_expr_ast(std::unique_ptr<expr_ast> cond, std::unique_ptr<expr_ast> then, std::unique_ptr<expr_ast> else_)
+			: cond_(std::move(cond)),
+			  then_(std::move(then)),
+			  else_(std::move(else_)) {}
+
+		llvm::Value* codegen() override;
+	};
+
+	/// ForExprAST - Expression class for for/in.
+	class for_expr_ast final : public expr_ast
+	{
+		std::string cond_name_;
+		std::unique_ptr<expr_ast> init_;
+		std::unique_ptr<expr_ast> end_;
+		std::unique_ptr<expr_ast> step_;
+		std::unique_ptr<expr_ast> body_;
+
+	public:
+		for_expr_ast(std::string cond_var, std::unique_ptr<expr_ast> init, std::unique_ptr<expr_ast> end, std::unique_ptr<expr_ast> step, std::unique_ptr<expr_ast> body)
+			: cond_name_(std::move(cond_var)),
+			  init_(std::move(init)),
+			  end_(std::move(end)),
+			  step_(std::move(step)),
+			  body_(std::move(body)) {}
 
 		llvm::Value* codegen() override;
 	};
