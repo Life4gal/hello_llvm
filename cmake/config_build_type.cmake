@@ -5,9 +5,10 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 			CACHE STRING "Choose the type of build." FORCE
 	)
 	set_property(
+			CACHE
 			CMAKE_BUILD_TYPE
-			PROPERTY CACHE
-			STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo"
+			PROPERTY STRINGS 
+			"Debug" "Release" "MinSizeRel" "RelWithDebInfo"
 	)
 else()
 	message("${PROJECT_NAME} info: Current build type is: ${CMAKE_BUILD_TYPE}")

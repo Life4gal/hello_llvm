@@ -316,7 +316,7 @@ namespace hello_llvm
 				// Get the symbol's address and cast it to the right type (takes no
 				// arguments, returns a double) so we can call it as a native function.
 				const auto fp = reinterpret_cast<double(*)()>(static_cast<std::intptr_t>(expr.getAddress()));
-				std::cerr << "Evaluated to -->" << std::setw(8) << std::setprecision(3) << fp() << "\n\n";
+				std::cerr << "\nEvaluated to -->" << std::setw(8) << std::setprecision(3) << fp() << "\n\n";
 
 				// Delete the anonymous expression module from the JIT.
 				context.exit_on_error(rt->remove());

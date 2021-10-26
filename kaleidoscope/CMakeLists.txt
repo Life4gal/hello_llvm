@@ -18,6 +18,7 @@ endif(LLVM_FOUND)
 include(LLVMConfig)
 message(STATUS "Found LLVM Package Version: ${LLVM_PACKAGE_VERSION}")
 message(STATUS "LLVM Built Type: ${LLVM_BUILD_TYPE}")
+message("LLVM -----> ${LLVM_INCLUDE_DIRS}")
 
 llvm_map_components_to_libnames(
 	REQ_LLVM_LIBRARIES 
@@ -63,14 +64,6 @@ target_compile_definitions(
 		PRIVATE
 		${LLVM_DEFINITIONS}
 )
-
-message("LLVM -----> ${LLVM_INCLUDE_DIRS}")
-
-#target_include_directories(
-#		${PROJECT_NAME}
-#		PRIVATE
-#		${CMAKE_CURRENT_BINARY_DIR}
-#)
 
 target_compile_features(
 	${PROJECT_NAME} 

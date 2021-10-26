@@ -32,8 +32,7 @@ void main_loop(hello_llvm::parser& parser)
 	while (true)
 	{
 		std::cerr << "ready> ";
-		parser.get_next_token();
-		switch (parser.get_curr_token())
+		switch (parser.get_next_token())
 		{
 			case '_':
 			case hello_llvm::tokenizer::tok_eof:
@@ -64,6 +63,7 @@ int main()
 	llvm::InitializeNativeTarget();
 	llvm::InitializeNativeTargetAsmPrinter();
 	llvm::InitializeNativeTargetAsmParser();
+	llvm::InitializeNativeTargetDisassembler();
 
 	hello_llvm::parser		   parser{};
 
@@ -78,7 +78,7 @@ int main()
 	main_loop(parser);
 
 	// Print out all the generated code.
-	hello_llvm::global_context::get().module->print(llvm::errs(), nullptr);
+	// hello_llvm::global_context::get().module->print(llvm::errs(), nullptr);
 
 	return 0;
 }
