@@ -1,12 +1,7 @@
 #ifndef HELLO_LLVM_AST_HPP
 #define HELLO_LLVM_AST_HPP
 
-// #include <llvm-12/llvm/IR/Function.h>
 #include <llvm-12/llvm/IR/IRBuilder.h>
-// #include <llvm-12/llvm/IR/LLVMContext.h>
-// #include <llvm-12/llvm/IR/Module.h>
-// #include <llvm-12/llvm/IR/LegacyPassManager.h>
-// #include <kaleidoscope/details/KaleidoscopeJIT.hpp>
 #include <llvm-12/llvm/Support/Error.h>
 
 #include <map>
