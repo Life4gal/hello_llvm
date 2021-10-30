@@ -8,17 +8,6 @@
 
 namespace hello_llvm
 {
-	int parser::get_token_precedence()
-	{
-		// todo: is-ascii was deprecated
-		if (!isascii(curr_tok_)) { return -1; }
-
-		// Make sure it's a declared bin_op
-		const int tok_prec = bin_op_precedence_[static_cast<char>(curr_tok_)];
-		if (tok_prec <= 0) { return -1; }
-		return tok_prec;
-	}
-
 	std::unique_ptr<expr_ast> parser::parse_number_expr()
 	{
 		auto result = std::make_unique<number_expr_ast>(tok_.num_val);
@@ -160,12 +149,30 @@ namespace hello_llvm
 		}
 	}
 
+	std::unique_ptr<expr_ast> parser::parse_unary_op()
+	{
+		// If the current token is not an operator, it must be a primary expr.
+		if (!isascii(curr_tok_) || curr_tok_ == '(' || curr_tok_ == ',')
+		{
+			return parse_primary();
+		}
+
+		// If this is a unary operator, read it.
+		auto op = curr_tok_;
+		get_next_token();
+		if (auto operand = parse_unary_op(); operand)
+		{
+			return std::make_unique<unary_expr_ast>(op, std::move(operand));
+		}
+		return nullptr;
+	}
+
 	std::unique_ptr<expr_ast> parser::parse_bin_op_rhs(const int expr_prec, std::unique_ptr<expr_ast> lhs)
 	{
 		// If this is a bin_op, find its precedence.
 		while (true)
 		{
-			const auto tok_prec = get_token_precedence();
+			const auto tok_prec = global_context::get_token_precedence(curr_tok_);
 
 			// If this is a bin_op that binds at least as tightly as the current bin_op,
 			// consume it, otherwise we are done.
@@ -175,13 +182,13 @@ namespace hello_llvm
 			auto bin_op = curr_tok_;
 			get_next_token();// eat bin_op
 
-			// Parse the primary expression after the binary operator.
-			auto rhs = parse_primary();
+			// Parse the unary expression after the binary operator.
+			auto rhs = parse_unary_op();
 			if (!rhs) { return nullptr; }
 
 			// If bin_op binds less tightly with RHS than the operator after RHS, let
 			// the pending operator take RHS as its lhs.
-			const auto next_prec = get_token_precedence();
+			const auto next_prec = global_context::get_token_precedence(curr_tok_);
 			if (tok_prec < next_prec)
 			{
 				rhs = parse_bin_op_rhs(tok_prec + 1, std::move(rhs));
@@ -195,7 +202,7 @@ namespace hello_llvm
 
 	std::unique_ptr<expr_ast> parser::parse_expression()
 	{
-		auto lhs = parse_primary();
+		auto lhs = parse_unary_op();
 		if (!lhs) { return nullptr; }
 
 		return parse_bin_op_rhs(0, std::move(lhs));
@@ -203,10 +210,60 @@ namespace hello_llvm
 
 	std::unique_ptr<prototype_ast> parser::parse_prototype()
 	{
-		if (curr_tok_ != tokenizer::tok_identifier) { return log_error_p("expected function name in prototype"); }
+		enum class operator_kind
+		{
+			identifier = 0,
+			unary = 1,
+			binary = 2
+		};
 
-		std::string func_name = tok_.identifier_str;
-		get_next_token();
+		std::string func_name;
+		operator_kind kind;
+		int			precedence = 30;
+
+		switch (curr_tok_)
+		{
+			default:
+				return log_error_p("expected function name in prototype");
+			case tokenizer::tok_identifier:
+				func_name = tok_.identifier_str;
+				kind	  = operator_kind::identifier;
+				get_next_token();
+				break;
+			case tokenizer::tok_unary:
+				get_next_token();
+				if (!isascii(curr_tok_))
+				{
+					return log_error_p("expected unary operator");
+				}
+				func_name = "unary";
+				func_name.push_back(static_cast<char>(curr_tok_));
+				kind = operator_kind::unary;
+				get_next_token();
+				break;
+			case tokenizer::tok_binary:
+				get_next_token();
+				if (!isascii(curr_tok_))
+				{
+					return log_error_p("expected binary operator");
+				}
+				func_name = "binary";
+				func_name.push_back(static_cast<char>(curr_tok_));
+				kind = operator_kind::binary;
+				get_next_token();
+
+				// Read the precedence if present.
+				if (curr_tok_ == tokenizer::tok_number)
+				{
+					if (tok_.num_val < 1 || tok_.num_val > 100)
+					{
+						return log_error_p("invalid precedence, must be 1...100");
+					}
+					precedence = static_cast<decltype(precedence)>(tok_.num_val);
+					get_next_token();
+				}
+				break;
+		}
 
 		if (curr_tok_ != '(') { return log_error_p("expected '(' in prototype"); }
 
@@ -218,7 +275,13 @@ namespace hello_llvm
 		// success
 		get_next_token();// eat ')'
 
-		return std::make_unique<prototype_ast>(func_name, std::move(arg_names));
+		// Verify right number of names for operator.
+		if (kind != operator_kind::identifier && arg_names.size() != static_cast<decltype(arg_names)::size_type>(kind))
+		{
+			return log_error_p("invalid number of operands for operator");
+		}
+
+		return std::make_unique<prototype_ast>(func_name, std::move(arg_names), kind != operator_kind::identifier, precedence);
 	}
 
 	std::unique_ptr<function_ast> parser::parse_definition()
@@ -280,7 +343,7 @@ namespace hello_llvm
 				func_ir->print(llvm::errs());
 				std::cerr << '\n';
 
-				global_context::insert_or_assign(std::move(proto_ast));
+				global_context::insert_or_assign_function(std::move(proto_ast));
 			}
 		}
 		else

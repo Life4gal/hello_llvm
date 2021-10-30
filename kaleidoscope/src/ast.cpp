@@ -64,6 +64,17 @@ namespace hello_llvm
 		return context;
 	}
 
+	int global_context::get_token_precedence(int tok)
+	{
+		// todo: is-ascii was deprecated
+		if (!isascii(tok)) { return -1; }
+
+		// Make sure it's a declared bin_op
+		const int tok_prec = get().bin_op_precedence_[static_cast<char>(tok)];
+		if (tok_prec <= 0) { return -1; }
+		return tok_prec;
+	}
+
 	llvm::Function* global_context::get_function(const std::string& name)
 	{
 		const auto& self = get();
@@ -78,7 +89,7 @@ namespace hello_llvm
 		return nullptr;
 	}
 
-	std::pair<decltype(global_context::functions_proto)::iterator, bool> global_context::insert_or_assign(std::unique_ptr<prototype_ast> ast)
+	std::pair<decltype(global_context::functions_proto)::iterator, bool> global_context::insert_or_assign_function(std::unique_ptr<prototype_ast> ast)
 	{
 		// oops, here is a undefined behavior :(
 		return get().functions_proto.insert_or_assign(ast->get_name(), std::move(ast));
@@ -115,6 +126,23 @@ namespace hello_llvm
 		return v;
 	}
 
+	llvm::Value* unary_expr_ast::codegen()
+	{
+		auto* operand = operand_->codegen();
+		if (!operand)
+		{
+			return nullptr;
+		}
+
+		auto* func = global_context::get().get_function(std::string{"unary"} + op_);
+		if (!func)
+		{
+			return log_error_v("unknown unary operator");
+		}
+
+		return global_context::get().builder->CreateCall(func, operand, "unary_op");
+	}
+
 	llvm::Value* binary_expr_ast::codegen()
 	{
 		auto* l = lhs_->codegen();
@@ -129,8 +157,19 @@ namespace hello_llvm
 			case '<': l = global_context::get().builder->CreateFCmpULT(l, r, "cmp_tmp");
 				// Convert bool 0/1 to double 0.0 or 1.0
 				return global_context::get().builder->CreateUIToFP(l, llvm::Type::getDoubleTy(*global_context::get().context), "bool_tmp");
-			default: return log_error_v("invalid binary operator");
+			default: break;
 		}
+
+		// If it wasn't a builtin binary operator, it must be a user defined one. Emit
+		// a call to it.
+		auto* func = global_context::get().get_function(std::string{"binary"} + op_);
+		if (!func)
+		{
+			return log_error_v("unknown binary operator");
+		}
+
+		llvm::Value* ops[]{l, r};
+		return global_context::get().builder->CreateCall(func, ops, "binary_op");
 	}
 
 	llvm::Value* call_expr_ast::codegen()
@@ -145,8 +184,12 @@ namespace hello_llvm
 		std::vector<llvm::Value*> vec;
 		for (const auto& arg: args_)
 		{
-			vec.push_back(arg->codegen());
-			if (!vec.back()) { return nullptr; }
+			auto* v = arg->codegen();
+			if (!v)
+			{
+				return nullptr;
+			}
+			vec.push_back(v);
 		}
 
 		return global_context::get().builder->CreateCall(callee_func, vec, "call_tmp");
@@ -244,9 +287,7 @@ namespace hello_llvm
 
 		// Within the loop, the variable is defined equal to the PHI node.  If it
 		// shadows an existing variable, we have to restore it, so save it now.
-		// auto* old_val = std::exchange(context.named_values[cond_name_], var);
-		auto* old_val = context.named_values[cond_name_];
-		context.named_values[cond_name_] = var;
+		auto* old_val = std::exchange(context.named_values[cond_name_], var);
 
 		// Emit the body of the loop.  This, like any other expr, can change the
 		// current BB.  Note that we ignore the value computed by the body, but don't
@@ -289,15 +330,7 @@ namespace hello_llvm
 		var->addIncoming(next_val, loop_end_bb);
 
 		// Restore the un-shadowed variable.
-		// std::exchange(context.named_values[cond_name_], old_val);
-		if (old_val)
-		{
-			context.named_values[cond_name_] = old_val;
-		}
-		else
-		{
-			context.named_values.erase(cond_name_);
-		}
+		std::exchange(context.named_values[cond_name_], old_val);
 
 		// for expr always returns 0.0.
 		return llvm::ConstantFP::getNullValue(llvm::Type::getDoubleTy(*context.context));
@@ -325,10 +358,16 @@ namespace hello_llvm
 		// Transfer ownership of the prototype to the Functions Proto map, but keep a
 		// reference to it for use below.
 		const auto& p = *proto_;
-		global_context::insert_or_assign(std::move(proto_));
+		global_context::insert_or_assign_function(std::move(proto_));
 
 		auto* func = global_context::get_function(p.get_name());
 		if (!func) { return nullptr; }
+
+		// If this is an operator, install it.
+		if (p.is_binary())
+		{
+			global_context::add_bin_op_precedence(p.get_operator_name(), p.get_precedence());
+		}
 
 		// Create a new basic block to start insertion into.
 		auto* bb = llvm::BasicBlock::Create(*global_context::get().context, "entry", func);
@@ -354,6 +393,12 @@ namespace hello_llvm
 
 		// Error reading body, remove function.
 		func->eraseFromParent();
+
+		if (p.is_binary())
+		{
+			global_context::erase_bin_op(p.get_operator_name());
+		}
+
 		return nullptr;
 	}
 }// namespace hello_llvm

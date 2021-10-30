@@ -36,6 +36,10 @@ namespace hello_llvm
 			{
 				return tok_if;
 			}
+			if (identifier_str == "then")
+			{
+				return tok_then;
+			}
 			if (identifier_str == "else")
 			{
 				return tok_else;
@@ -47,6 +51,14 @@ namespace hello_llvm
 			if (identifier_str == "in")
 			{
 				return tok_in;
+			}
+			if (identifier_str == "binary")
+			{
+				return tok_binary;
+			}
+			if (identifier_str == "unary")
+			{
+				return tok_unary;
 			}
 			return tok_identifier;
 		}

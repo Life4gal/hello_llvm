@@ -69,10 +69,10 @@ int main()
 
 	// Install standard binary operators.
 	// 1 is the lowest precedence.
-	parser.add_bin_op_precedence('<', 10);
-	parser.add_bin_op_precedence('+', 20);
-	parser.add_bin_op_precedence('-', 20);
-	parser.add_bin_op_precedence('*', 40);// highest.
+	hello_llvm::global_context::add_bin_op_precedence('<', 10);
+	hello_llvm::global_context::add_bin_op_precedence('+', 20);
+	hello_llvm::global_context::add_bin_op_precedence('-', 20);
+	hello_llvm::global_context::add_bin_op_precedence('*', 40);// highest.
 
 	// Run the main "interpreter loop" now.
 	main_loop(parser);

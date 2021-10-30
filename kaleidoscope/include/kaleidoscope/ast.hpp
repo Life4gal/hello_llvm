@@ -57,13 +57,29 @@ namespace hello_llvm
 		std::map<std::string, std::unique_ptr<prototype_ast>> functions_proto;
 		std::map<std::string, llvm::Value*> named_values;
 
+		/// bin_op_precedence - This holds the precedence for each binary operator that is defined.
+		std::map<char, int> bin_op_precedence_;
+
 		static global_context& get();
+
+		/// GetTokPrecedence - Get the precedence of the pending binary operator token.
+		[[nodiscard]] static int get_token_precedence(int tok);
+
+		static auto add_bin_op_precedence(char op, int precedence)
+		{
+			return get().bin_op_precedence_.emplace(op, precedence);
+		}
+
+		static auto erase_bin_op(char op)
+		{
+			return get().bin_op_precedence_.erase(op);
+		}
 
 		[[nodiscard]] static std::pair<std::unique_ptr<llvm::Module>, std::unique_ptr<llvm::LLVMContext>> refresh();
 
 		[[nodiscard]] static llvm::Function*															  get_function(const std::string& name);
 
-		static std::pair<decltype(functions_proto)::iterator, bool> insert_or_assign(std::unique_ptr<prototype_ast> ast);
+		static std::pair<decltype(functions_proto)::iterator, bool>						  insert_or_assign_function(std::unique_ptr<prototype_ast> ast);
 
 	private:
 		global_context();
@@ -122,6 +138,21 @@ namespace hello_llvm
 		#pragma clang	diagnostic push
 		#pragma clang diagnostic ignored "-Wpadded"
 	#endif
+
+	/// unary_expr_ast - Expression class for a unary operator.
+	class unary_expr_ast final : public expr_ast
+	{
+		// padding 7 bytes :(
+		char op_;
+		std::unique_ptr<expr_ast> operand_;
+
+	public:
+		unary_expr_ast(const char op, std::unique_ptr<expr_ast> operand)
+			: op_(op),
+			  operand_(std::move(operand)) {}
+
+		llvm::Value* codegen() override;
+	};
 
 	/// binary_expr_ast - Expression class for a binary operator.
 	class binary_expr_ast final : public expr_ast
@@ -197,20 +228,33 @@ namespace hello_llvm
 
 	/// prototype_ast - This class represents the "prototype" for a function,
 	/// which captures its name, and its argument names (thus implicitly the number
-	/// of arguments the function takes).
+	/// of arguments the function takes), as well as if it is an operator.
 	class prototype_ast
 	{
 		std::string name_;
 		std::vector<std::string> args_;
 
+		bool					 is_operator_;
+		int						 precedence_; // Precedence if a binary op.
+
 	public:
-		prototype_ast(std::string name, std::vector<std::string> args)
+		prototype_ast(std::string name, std::vector<std::string> args,
+			bool is_operator = false, int precendence = 0)
 			: name_(std::move(name)),
-			  args_(std::move(args)) {}
+			  args_(std::move(args)),
+			  is_operator_(is_operator),
+			  precedence_(precendence) {}
 
 		llvm::Function* codegen();
 
-		[[nodiscard]] const std::string& get_name() const { return name_; }
+		[[nodiscard]] const std::string& get_name() const noexcept { return name_; }
+
+		[[nodiscard]] bool				 is_unary() const noexcept { return is_operator_ && args_.size() == 1; }
+		[[nodiscard]] bool				 is_binary() const noexcept { return is_operator_ && args_.size() == 2; }
+
+		[[nodiscard]] char				 get_operator_name() const noexcept { return name_.back(); }
+
+		[[nodiscard]] int get_precedence() const noexcept { return precedence_; }
 	};
 
 	/// function_ast - This class represents a function definition itself.

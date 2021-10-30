@@ -22,14 +22,9 @@ namespace hello_llvm
 
 		int curr_tok_{};
 
-		/// bin_op_precedence - This holds the precedence for each binary operator that is defined.
-		std::map<char, int> bin_op_precedence_;
-
-		/// GetTokPrecedence - Get the precedence of the pending binary operator token.
-		int get_token_precedence();
-
 		/// expression
-		///   ::= primary bin_op_rhs
+		///   ::= unary binoprhs
+		///   ::= bin_op_rhs
 		std::unique_ptr<expr_ast> parse_expression();
 
 		/// number_expr ::= number
@@ -57,12 +52,19 @@ namespace hello_llvm
 		///   ::= for_expr
 		std::unique_ptr<expr_ast> parse_primary();
 
+		/// unary
+		///   ::= primary
+		///   ::= '!' unary
+		std::unique_ptr<expr_ast>	   parse_unary_op();
+
 		/// bin_op_rhs
-		///   ::= ('+' primary)*
+		///   ::= ('+' unary)*
 		std::unique_ptr<expr_ast> parse_bin_op_rhs(int expr_prec, std::unique_ptr<expr_ast> lhs);
 
 		/// prototype
 		///   ::= id '(' id* ')'
+		/// ::= binary LETTER number? (id, id)
+		/// ::= unary LETTER (id)
 		std::unique_ptr<prototype_ast> parse_prototype();
 
 		/// definition ::= 'def' prototype expression
@@ -78,8 +80,6 @@ namespace hello_llvm
 		[[nodiscard]] int get_curr_token() const { return curr_tok_; }
 
 		int get_next_token() { return curr_tok_ = tok_.get_token(); }
-
-		auto add_bin_op_precedence(char op, int precedence) { return bin_op_precedence_.emplace(op, precedence); }
 
 		void handle_definition();
 		void handle_extern();
